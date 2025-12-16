@@ -1,0 +1,61 @@
+version: '3.9'
+services:
+  db:
+    image: mysql:8.0
+    container_name: HerreraExamenP2-db
+    restart: always
+    environment:
+      MYSQL_DATABASE: soporte_db
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_USER: user
+      MYSQL_PASSWORD: userpass
+    ports:
+      - "3307:3306"
+    networks:
+      - HerreraExamenP2-net
+    volumes:
+      - HerreraExamenP2_db_data:/var/lib/mysql
+
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  backend:
+    build:
+      context: ./HerreraAlanLeccion-extra
+    container_name: HerreraExamenP2-backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/soporte_db?useSSL=false&serverTimezone=UTC&createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+    ports:
+      - "9090:9090"
+    networks:
+      - HerreraExamenP2-net
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: HerreraExamenP2-frontend
+    environment:
+      VITE_API_URL: http://backend:9090/api/v1/support-tickets
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - HerreraExamenP2-net
+
+networks:
+  HerreraExamenP2-net:
+    driver: bridge
+
+volumes:
+  HerreraExamenP2_db_data:

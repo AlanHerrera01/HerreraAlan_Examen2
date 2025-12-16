@@ -37,6 +37,30 @@ const TicketList = forwardRef((props, ref) => {
   const fetchTickets = async () => {
     setLoading(true);
     setError(null);
+    // Validaciones de filtros
+    if (filters.minCost && Number(filters.minCost) < 0) {
+      setError('El costo mínimo debe ser 0 o mayor.'); setLoading(false); return;
+    }
+    if (filters.maxCost && Number(filters.maxCost) < 0) {
+      setError('El costo máximo debe ser 0 o mayor.'); setLoading(false); return;
+    }
+    if (filters.minCost && filters.maxCost && Number(filters.minCost) > Number(filters.maxCost)) {
+      setError('El costo mínimo no puede ser mayor que el costo máximo.'); setLoading(false); return;
+    }
+    if ((filters.from && !filters.to) || (!filters.from && filters.to)) {
+      setError('Debes seleccionar tanto la fecha y hora de inicio como la de fin para filtrar por rango.'); setLoading(false); return;
+    }
+    if (filters.from && filters.to) {
+      const fromDate = new Date(filters.from);
+      const toDate = new Date(filters.to);
+      const now = new Date();
+      if (fromDate > toDate) {
+        setError('La fecha inicial no puede ser mayor que la final.'); setLoading(false); return;
+      }
+      if (fromDate > now || toDate > now) {
+        setError('Las fechas no pueden ser mayores a la fecha y hora actual.'); setLoading(false); return;
+      }
+    }
     try {
       const params = new URLSearchParams();
       Object.entries(filters).forEach(([key, value]) => {
@@ -45,10 +69,28 @@ const TicketList = forwardRef((props, ref) => {
           if (key === 'status' && !['OPEN','IN_PROGRESS','RESOLVED','CLOSED','CANCELLED'].includes(value)) return;
           // Solo enviar currency si es válido
           if (key === 'currency' && !['USD','EUR'].includes(value)) return;
-          // Convertir fechas a ISO si existen
-          if ((key === 'from' || key === 'to') && value) {
-            // value es tipo 'YYYY-MM-DDTHH:mm', convertir a 'YYYY-MM-DDTHH:mm:ss'
-            const iso = value.length === 16 ? value + ':00' : value;
+          // Fechas: si el usuario solo selecciona la fecha (sin hora), cubrir todo el día
+          if (key === 'from' && value) {
+            let iso = value;
+            if (value.length === 10) { // Solo fecha
+              iso = value + 'T00:00:00';
+            } else if (value.length === 16) { // Sin segundos
+              iso = value + ':00';
+            } else if (value.length === 19) { // Tiene segundos
+              iso = value.substring(0, 16) + ':00';
+            }
+            params.append(key, iso);
+            return;
+          }
+          if (key === 'to' && value) {
+            let iso = value;
+            if (value.length === 10) { // Solo fecha
+              iso = value + 'T23:59:59';
+            } else if (value.length === 16) { // Sin segundos
+              iso = value + ':59';
+            } else if (value.length === 19) { // Tiene segundos
+              iso = value.substring(0, 16) + ':59';
+            }
             params.append(key, iso);
             return;
           }
@@ -114,7 +156,7 @@ const TicketList = forwardRef((props, ref) => {
           <input name="minCost" type="number" min="0" placeholder="Costo mínimo" value={filters.minCost} onChange={handleChange} style={{padding:'8px 14px',borderRadius:8,border:'1px solid #b3c6e0',fontSize:15,maxWidth:120}} />
           <input name="maxCost" type="number" min="0" placeholder="Costo máximo" value={filters.maxCost} onChange={handleChange} style={{padding:'8px 14px',borderRadius:8,border:'1px solid #b3c6e0',fontSize:15,maxWidth:120}} />
           <div style={{display:'flex',flexDirection:'column',gap:2}}>
-            <span style={{fontSize:13,color:'#1976d2',marginBottom:2}}>Rango de fecha y hora</span>
+            <span style={{fontSize:13,color:'#1976d2',marginBottom:2}}>Rango de fecha y hora <span style={{color:'red'}}>*</span></span>
             <div style={{display:'flex',gap:6}}>
               <input name="from" type="datetime-local" value={filters.from} onChange={handleChange} style={{padding:'8px 14px',borderRadius:8,border:'1px solid #b3c6e0',fontSize:15}} placeholder="Fecha y hora inicial" />
               <input name="to" type="datetime-local" value={filters.to} onChange={handleChange} style={{padding:'8px 14px',borderRadius:8,border:'1px solid #b3c6e0',fontSize:15}} placeholder="Fecha y hora final" />
@@ -169,45 +211,32 @@ const TicketList = forwardRef((props, ref) => {
             </p>
           ) : (
             <>
-              <table style={{animation: 'fadeIn 0.7s'}}>
-                <thead>
+              <table className="custom-table" style={{animation: 'fadeIn 0.7s', borderCollapse: 'separate', borderSpacing: 0, width: '100%', boxShadow: '0 2px 16px #1976d233', borderRadius: 16, overflow: 'hidden'}}>
+                <thead style={{background: 'linear-gradient(90deg, #e3f0ff 60%, #bbdefb 100%)'}}>
                   <tr>
-                    <th>#</th>
-                    <th>Solicitante</th>
-                    <th>Estado</th>
-                    <th>Prioridad</th>
-                    <th>Categoría</th>
-                    <th>Costo</th>
-                    <th>Moneda</th>
-                    <th>Creado</th>
-                    <th>Vence</th>
-                    <th>Acciones</th>
+                    <th style={{color:'#222',fontWeight:700,padding:'12px 8px',fontSize:18}}>#</th>
+                    <th style={{color:'#222',fontWeight:700,padding:'12px 8px',fontSize:18}}>Solicitante</th>
+                    <th style={{color:'#222',fontWeight:700,padding:'12px 8px',fontSize:18}}>Estado</th>
+                    <th style={{color:'#222',fontWeight:700,padding:'12px 8px',fontSize:18}}>Prioridad</th>
+                    <th style={{color:'#222',fontWeight:700,padding:'12px 8px',fontSize:18}}>Categoría</th>
+                    <th style={{color:'#222',fontWeight:700,padding:'12px 8px',fontSize:18}}>Costo</th>
+                    <th style={{color:'#222',fontWeight:700,padding:'12px 8px',fontSize:18}}>Moneda</th>
+                    <th style={{color:'#222',fontWeight:700,padding:'12px 8px',fontSize:18}}>Creado</th>
+                    <th style={{color:'#222',fontWeight:700,padding:'12px 8px',fontSize:18}}>Vence</th>
                   </tr>
                 </thead>
                 <tbody>
                   {tickets.map((t, i) => (
-                    <tr key={t.id} style={{cursor: 'pointer'}}>
-                      <td onClick={() => setSelected(t)}>{t.ticketNumber}</td>
-                      <td onClick={() => setSelected(t)}>{t.requesterName}</td>
-                      <td onClick={() => setSelected(t)}>{t.status}</td>
-                      <td onClick={() => setSelected(t)}>{t.priority}</td>
-                      <td onClick={() => setSelected(t)}>{t.category}</td>
-                      <td onClick={() => setSelected(t)}>{t.estimatedCost}</td>
-                      <td onClick={() => setSelected(t)}>{t.currency}</td>
-                      <td onClick={() => setSelected(t)}>{t.createdAt}</td>
-                      <td onClick={() => setSelected(t)}>{t.dueDate}</td>
-                      <td className="table-actions">
-                        <button
-                          onClick={e => { e.stopPropagation(); setEditTicket(t); }}
-                          className="form-btn"
-                          style={{background: 'linear-gradient(90deg, #1976d2 60%, #64b5f6 100%)', padding: '6px 18px', fontSize: 15, marginBottom: 2}}
-                        >Editar</button>
-                        <button
-                          onClick={e => { e.stopPropagation(); handleDelete(t.id); }}
-                          className="form-btn"
-                          style={{background: 'linear-gradient(90deg, #d32f2f 60%, #ff8a65 100%)', padding: '6px 18px', fontSize: 15, marginBottom: 2}}
-                        >Eliminar</button>
-                      </td>
+                    <tr key={t.id} style={{cursor: 'pointer', background: i % 2 === 0 ? '#e3f0ff' : '#fff', transition: 'background 0.2s'}}>
+                      <td onClick={() => setSelected(t)} style={{padding:'10px 8px',fontWeight:600}}>{t.ticketNumber}</td>
+                      <td onClick={() => setSelected(t)} style={{padding:'10px 8px',fontWeight:600}}>{t.requesterName}</td>
+                      <td onClick={() => setSelected(t)} style={{padding:'10px 8px'}}>{t.status}</td>
+                      <td onClick={() => setSelected(t)} style={{padding:'10px 8px'}}>{t.priority}</td>
+                      <td onClick={() => setSelected(t)} style={{padding:'10px 8px'}}>{t.category}</td>
+                      <td onClick={() => setSelected(t)} style={{padding:'10px 8px'}}>{t.estimatedCost}</td>
+                      <td onClick={() => setSelected(t)} style={{padding:'10px 8px'}}>{t.currency}</td>
+                      <td onClick={() => setSelected(t)} style={{padding:'10px 8px',fontSize:13}}>{t.createdAt}</td>
+                      <td onClick={() => setSelected(t)} style={{padding:'10px 8px',fontSize:13}}>{t.dueDate}</td>
                     </tr>
                   ))}
                 </tbody>

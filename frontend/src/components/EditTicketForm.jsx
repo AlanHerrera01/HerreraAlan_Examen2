@@ -24,10 +24,10 @@ function EditTicketForm({ ticket, onClose, onSaved }) {
       setError('La categoría es obligatoria'); setLoading(false); return;
     }
     if (!form.estimatedCost || Number(form.estimatedCost) < 0) {
-      setError('El costo estimado debe ser mayor o igual a 0'); setLoading(false); return;
+      setError('El costo estimado debe ser un número mayor o igual a 0'); setLoading(false); return;
     }
     if (!form.dueDate) {
-      setError('La fecha de vencimiento es obligatoria'); setLoading(false); return;
+      setError('Debes seleccionar una fecha y hora de vencimiento'); setLoading(false); return;
     }
     try {
       const res = await fetch(`${API_URL}/${ticket.id}`, {
